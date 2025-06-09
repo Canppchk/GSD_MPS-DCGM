@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nvidia-smi-exporter
+  namespace: gpu-operator
+  labels:
+    app: nvidia-smi-exporter
+spec:
+  selector:
+    matchLabels:
+      app: nvidia-smi-exporter
+  template:
+    metadata:
+      labels:
+        app: nvidia-smi-exporter
+    spec:
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+      # hostNetwork: true                # expose PodIP:9114
+      containers:
+      - name: exporter
+        image: nvidia/cuda:12.4.0-base-ubuntu22.04
+        securityContext:
+          privileged: true
+        command: ["/bin/bash","-c"]
+        args:
+        - |
+          # install netcat once
+          apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends netcat-openbsd >/dev/null
+          echo "[exporter] started; waiting for connections on :9114"
+          # one connection ➜ run nvidia-smi ➜ close ➜ loop forever
+          while true; do
+            {
+              printf 'HTTP/1.1 200 OK\r\n'
+              printf 'Content-Type: text/plain\r\n\r\n'
+              nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total \
+                         --format=csv,noheader,nounits \
+              | awk -F, '{printf "gpu_util %s\nmem_util %.1f\n",$1,($2/$3)*100}'
+            } | nc -l -k -q 5 9114
+          done
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists

@@ -1,0 +1,27 @@
+# permissions for end users to edit gpuworkloads.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: dcgm-mps-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: gpuworkload-editor-role
+rules:
+- apiGroups:
+  - gpu.ppchk.dev
+  resources:
+  - gpuworkloads
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gpu.ppchk.dev
+  resources:
+  - gpuworkloads/status
+  verbs:
+  - get

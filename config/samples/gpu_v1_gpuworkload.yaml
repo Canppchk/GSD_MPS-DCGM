@@ -1,0 +1,9 @@
+apiVersion: gpu.ppchk.dev/v1
+kind: GpuWorkload
+metadata:
+  labels:
+    app.kubernetes.io/name: dcgm-mps-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: gpuworkload-sample
+spec:
+  # TODO(user): Add fields here

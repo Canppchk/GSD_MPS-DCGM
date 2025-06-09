@@ -1,0 +1,23 @@
+# permissions for end users to view gpuworkloads.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: dcgm-mps-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: gpuworkload-viewer-role
+rules:
+- apiGroups:
+  - gpu.ppchk.dev
+  resources:
+  - gpuworkloads
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gpu.ppchk.dev
+  resources:
+  - gpuworkloads/status
+  verbs:
+  - get
