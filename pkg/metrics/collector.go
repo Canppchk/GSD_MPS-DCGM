@@ -105,39 +105,28 @@ func CollectAll(ctx context.Context, c client.Client) (map[string]Result, error)
 /* -------------------------------------------------------------------------- */
 
 func scrapePod(ip, node string) (*Result, error) {
-    // 1. กำหนด Timeout (เช่น 5 วินาที) เพื่อไม่ให้ Operator ค้างถ้า Network มีปัญหา
-    client := &http.Client{
-        Timeout: 5 * time.Second,
-    }
-
     url := "http://" + ip + ":9400/metrics"
-    log.Info("📡 Scraping metrics", "node", node, "url", url)
-
-    // 2. ใช้ client.Get แทน http.Get
-    resp, err := client.Get(url)
+    resp, err := http.Get(url)
     if err != nil {
-        // จะโชว์ใน Log ทันทีถ้า Connection Refused หรือ Timeout
-        log.Error(err, "❌ Failed to connect to DCGM exporter", "node", node, "ip", ip)
+        log.Error(err, "❌ HTTP GET Failed", "url", url)
         return nil, err
     }
     defer resp.Body.Close()
 
-    // 3. เช็ค HTTP Status Code
-    if resp.StatusCode != http.StatusOK {
-        errStatus := fmt.Errorf("bad status: %s", resp.Status)
-        log.Error(errStatus, "❌ DCGM exporter returned error status", "node", node)
-        return nil, errStatus
+    // อ่านข้อมูลทั้งหมดออกมาเพื่อ Log ดูว่าหน้าตา Metrics เป็นยังไง
+    bodyBytes, _ := io.ReadAll(resp.Body)
+    bodyString := string(bodyBytes)
+    
+    // พ่น Log ออกมาดู (โชว์แค่ 200 ตัวอักษรแรกเพื่อไม่ให้ Log ยาวเกินไป)
+    preview := bodyString
+    if len(preview) > 200 {
+        preview = preview[:200] + "..."
     }
+    log.Info("📥 Raw Metrics Response", "node", node, "ip", ip, "content", preview)
 
-    // 4. ส่งไป Parse
-    res, err := parseMetrics(resp.Body, node)
-    if err != nil {
-        log.Error(err, "❌ Failed to parse metrics content", "node", node)
-        return nil, err
-    }
-
-    log.Info("✅ Successfully scraped metrics", "node", node, "gpu_util", res.GPUUtil)
-    return res, nil
+    // เนื่องจากเราอ่าน Body ไปแล้ว ต้องสร้าง Reader ใหม่ส่งให้ parseMetrics
+    newReader := strings.NewReader(bodyString)
+    return parseMetrics(newReader, node)
 }
 
 func parseMetrics(r io.Reader, node string) (*Result, error) {
