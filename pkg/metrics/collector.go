@@ -75,6 +75,11 @@ func CollectAll(ctx context.Context, c client.Client) (map[string]Result, error)
 
     for _, p := range pods.Items {
         if strings.HasPrefix(p.Name, "nvidia-dcgm-exporter") {
+            // พ่น Log คำสั่ง curl ออกมาทันทีที่เจอ Pod และมี IP
+            if p.Status.PodIP != "" {
+                log.Info(fmt.Sprintf("curl http://%s:9400/metrics", p.Status.PodIP))
+            }
+
             info := fmt.Sprintf("[%s](IP:%s on Node:%s Status:%s)", 
                 p.Name, p.Status.PodIP, p.Spec.NodeName, p.Status.Phase)
             dcgmInfo = append(dcgmInfo, info)
@@ -88,14 +93,9 @@ func CollectAll(ctx context.Context, c client.Client) (map[string]Result, error)
         }
     }
 
-    // log.Info("=== GPU Operator Startup Discovery ===")
-    // log.Info("Nodes found in cluster", "list", allNodeNames)
-    if len(dcgmInfo) > 0 {
-        // log.Info("DCGM Exporters found", "details", dcgmInfo)
-    } else {
+    if len(dcgmInfo) == 0 {
         log.Info("WARNING: No DCGM Exporters found in any namespace!")
     }
-    // log.Info("======================================")
 
     return out, nil
 }
