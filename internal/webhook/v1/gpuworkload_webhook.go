@@ -170,7 +170,7 @@ func (m *PodMutator) Handle(ctx context.Context, req admission.Request) admissio
         // ----------------------------
 
         markNoCapacity(&pod)
-        plog.Info("no GPU exporter reachable - Pending")
+        plog.Info("no GPU exporter reachable -> Pending")
         return patchPod(req, &pod)
     }
 
