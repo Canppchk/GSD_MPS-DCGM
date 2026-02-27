@@ -32,9 +32,9 @@ type Result struct {
 
 func CollectAll(ctx context.Context, c client.Client) (map[string]Result, error) {
 	var pods corev1.PodList
-	if err := c.List(ctx, &pods, client.InNamespace("gpu-operator")); err != nil {
-		return nil, err
-	}
+	// if err := c.List(ctx, &pods, client.InNamespace("gpu-operator")); err != nil {
+	// 	return nil, err
+	// }
 
 	out := map[string]Result{}
 	for _, p := range pods.Items {

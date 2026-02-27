@@ -79,7 +79,8 @@ func (m *PodMutator) Handle(ctx context.Context, req admission.Request) admissio
 
 	/* ───────────── gather GPU nodes & metrics once ───────────── */
 	var nodes corev1.NodeList
-	if err := m.Client.List(ctx, &nodes, client.MatchingLabels{"nvidia.com/gpu.present": "true"}); err != nil {
+	// if err := m.Client.List(ctx, &nodes, client.MatchingLabels{"nvidia.com/gpu.present": "true"}); err != nil {
+	if err := m.Client.List(ctx, &nodes, client.HasLabels{"nvidia.com/gpu"}); err != nil {
 		plog.Error(err, "list GPU nodes")
 		return admission.Errored(500, err)
 	}
@@ -94,7 +95,10 @@ func (m *PodMutator) Handle(ctx context.Context, req admission.Request) admissio
 	_ = m.Client.List(ctx, &allPods, client.MatchingLabels{"mps-share": "true"})
 
 	var cands []cand
+	
 	for _, n := range nodes.Items {
+		plog.Info("Checking node candidate", "nodeName", n.Name)
+
 		// 1. skip nodes you never use
 		if _, banned := common.SkipNodes[n.Name]; banned {
 			continue
