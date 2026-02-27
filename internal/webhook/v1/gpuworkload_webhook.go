@@ -140,12 +140,39 @@ func (m *PodMutator) Handle(ctx context.Context, req admission.Request) admissio
 	}
 
 	/* ───────────── decision section ───────────── */
-	if len(cands) == 0 {
-		// no healthy GPU node
-		markNoCapacity(&pod)
-		plog.Info("no GPU exporter reachable - Pending")
-		return patchPod(req, &pod)
-	}
+	// if len(cands) == 0 {
+	// 	// no healthy GPU node
+	// 	markNoCapacity(&pod)
+	// 	plog.Info("no GPU exporter reachable - Pending")
+	// 	return patchPod(req, &pod)
+	// }
+	/* ───────────── decision section ───────────── */
+    if len(cands) == 0 {
+        // --- ส่วนที่เพิ่มเพื่อ Debug ---
+        var debugNodeNames []string
+        for _, n := range nodes.Items {
+            debugNodeNames = append(debugNodeNames, n.Name)
+        }
+
+        plog.Info("DEBUG: Candidates empty", 
+            "total_gpu_nodes_found", len(nodes.Items),
+            "gpu_node_names", debugNodeNames,
+            "metrics_map_size", len(all))
+
+        // ลองสุ่มเช็คสัก Node ว่าทำไมไม่มีใน metrics map
+        if len(nodes.Items) > 0 {
+            sampleNode := nodes.Items[0].Name
+            _, hasMetrics := all[sampleNode]
+            plog.Info("DEBUG: Sample Node Check", 
+                "node", sampleNode, 
+                "has_metrics_entry", hasMetrics)
+        }
+        // ----------------------------
+
+        markNoCapacity(&pod)
+        plog.Info("no GPU exporter reachable - Pending")
+        return patchPod(req, &pod)
+    }
 
 	// best score
 	best := cands[0]
