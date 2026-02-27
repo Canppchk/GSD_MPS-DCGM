@@ -88,14 +88,14 @@ func CollectAll(ctx context.Context, c client.Client) (map[string]Result, error)
         }
     }
 
-    log.Info("=== GPU Operator Startup Discovery ===")
-    log.Info("Nodes found in cluster", "list", allNodeNames)
+    // log.Info("=== GPU Operator Startup Discovery ===")
+    // log.Info("Nodes found in cluster", "list", allNodeNames)
     if len(dcgmInfo) > 0 {
-        log.Info("DCGM Exporters found", "details", dcgmInfo)
+        // log.Info("DCGM Exporters found", "details", dcgmInfo)
     } else {
         log.Info("WARNING: No DCGM Exporters found in any namespace!")
     }
-    log.Info("======================================")
+    // log.Info("======================================")
 
     return out, nil
 }
@@ -105,12 +105,39 @@ func CollectAll(ctx context.Context, c client.Client) (map[string]Result, error)
 /* -------------------------------------------------------------------------- */
 
 func scrapePod(ip, node string) (*Result, error) {
-	resp, err := http.Get("http://" + ip + ":9400/metrics") // #nosec G107
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	return parseMetrics(resp.Body, node)
+    // 1. กำหนด Timeout (เช่น 5 วินาที) เพื่อไม่ให้ Operator ค้างถ้า Network มีปัญหา
+    client := &http.Client{
+        Timeout: 5 * time.Second,
+    }
+
+    url := "http://" + ip + ":9400/metrics"
+    log.Info("📡 Scraping metrics", "node", node, "url", url)
+
+    // 2. ใช้ client.Get แทน http.Get
+    resp, err := client.Get(url)
+    if err != nil {
+        // จะโชว์ใน Log ทันทีถ้า Connection Refused หรือ Timeout
+        log.Error(err, "❌ Failed to connect to DCGM exporter", "node", node, "ip", ip)
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    // 3. เช็ค HTTP Status Code
+    if resp.StatusCode != http.StatusOK {
+        errStatus := fmt.Errorf("bad status: %s", resp.Status)
+        log.Error(errStatus, "❌ DCGM exporter returned error status", "node", node)
+        return nil, errStatus
+    }
+
+    // 4. ส่งไป Parse
+    res, err := parseMetrics(resp.Body, node)
+    if err != nil {
+        log.Error(err, "❌ Failed to parse metrics content", "node", node)
+        return nil, err
+    }
+
+    log.Info("✅ Successfully scraped metrics", "node", node, "gpu_util", res.GPUUtil)
+    return res, nil
 }
 
 func parseMetrics(r io.Reader, node string) (*Result, error) {
