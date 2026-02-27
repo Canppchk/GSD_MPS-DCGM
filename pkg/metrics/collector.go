@@ -114,27 +114,28 @@ func scrapePod(ip, node string) (*Result, error) {
 }
 
 func parseMetrics(r io.Reader, node string) (*Result, error) {
-	sc := bufio.NewScanner(r)
-	res := Result{GPUUtil: -1, MemUtil: -1, XID: -1}
-	for sc.Scan() {
-		line := sc.Text()
+    sc := bufio.NewScanner(r)
+    res := Result{GPUUtil: -1, MemUtil: -1, XID: 0} 
+    foundAny := false
 
-		switch {
-		case strings.HasPrefix(line, "DCGM_FI_DEV_GPU_UTIL"):
-			res.GPUUtil = parseFloat(line)
+    for sc.Scan() {
+        line := sc.Text()
+        if strings.HasPrefix(line, "DCGM_FI_DEV_GPU_UTIL") {
+            res.GPUUtil = parseFloat(line)
+            foundAny = true
+        } else if strings.HasPrefix(line, "DCGM_FI_DEV_MEM_COPY_UTIL") {
+            res.MemUtil = parseFloat(line)
+            foundAny = true
+        } else if strings.HasPrefix(line, "DCGM_FI_DEV_XID_ERRORS") {
+            res.XID = parseInt(line)
+        }
+    }
 
-		case strings.HasPrefix(line, "DCGM_FI_DEV_MEM_COPY_UTIL"):
-			res.MemUtil = parseFloat(line)
+    if !foundAny || res.GPUUtil == -1 {
+        return nil, fmt.Errorf("essential metrics (GPU Util) not found for %s", node)
+    }
 
-		case strings.HasPrefix(line, "DCGM_FI_DEV_XID_ERRORS"):
-			res.XID = parseInt(line)
-		}
-
-		if res.GPUUtil >= 0 && res.MemUtil >= 0 && res.XID >= 0 {
-			return &res, nil
-		}
-	}
-	return nil, fmt.Errorf("metrics not found for %s", node)
+    return &res, nil
 }
 
 /* -------------------------------------------------------------------------- */
