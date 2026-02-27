@@ -30,28 +30,74 @@ type Result struct {
 /*                         cluster-wide collection                             */
 /* -------------------------------------------------------------------------- */
 
-func CollectAll(ctx context.Context, c client.Client) (map[string]Result, error) {
-	var pods corev1.PodList
-	// if err := c.List(ctx, &pods, client.InNamespace("gpu-operator")); err != nil {
-	// 	return nil, err
-	// }
+// func CollectAll(ctx context.Context, c client.Client) (map[string]Result, error) {
+// 	var pods corev1.PodList
+// 	if err := c.List(ctx, &pods, client.InNamespace("gpu-operator")); err != nil {
+// 		return nil, err
+// 	}
 
-	out := map[string]Result{}
-	for _, p := range pods.Items {
-		if !strings.HasPrefix(p.Name, "nvidia-dcgm-exporter") ||
-			p.Status.Phase != corev1.PodRunning ||
-			p.Status.PodIP == "" {
-			continue
-		}
-		r, err := scrapePod(p.Status.PodIP, p.Spec.NodeName)
-		if err != nil {
-			log.Error(err, "scrape failed",
-				"pod", p.Name, "ip", p.Status.PodIP)
-			continue
-		}
-		out[p.Spec.NodeName] = *r
-	}
-	return out, nil
+// 	out := map[string]Result{}
+// 	for _, p := range pods.Items {
+// 		if !strings.HasPrefix(p.Name, "nvidia-dcgm-exporter") ||
+// 			p.Status.Phase != corev1.PodRunning ||
+// 			p.Status.PodIP == "" {
+// 			continue
+// 		}
+// 		r, err := scrapePod(p.Status.PodIP, p.Spec.NodeName)
+// 		if err != nil {
+// 			log.Error(err, "scrape failed",
+// 				"pod", p.Name, "ip", p.Status.PodIP)
+// 			continue
+// 		}
+// 		out[p.Spec.NodeName] = *r
+// 	}
+// 	return out, nil
+// }
+
+func CollectAll(ctx context.Context, c client.Client) (map[string]Result, error) {
+    var nodes corev1.NodeList
+    if err := c.List(ctx, &nodes); err != nil {
+        return nil, err
+    }
+
+    var pods corev1.PodList
+    if err := c.List(ctx, &pods); err != nil {
+        return nil, err
+    }
+
+    out := map[string]Result{}
+    var dcgmInfo []string
+    var allNodeNames []string
+
+    for _, n := range nodes.Items {
+        allNodeNames = append(allNodeNames, n.Name)
+    }
+
+    for _, p := range pods.Items {
+        if strings.HasPrefix(p.Name, "nvidia-dcgm-exporter") {
+            info := fmt.Sprintf("[%s](IP:%s on Node:%s Status:%s)", 
+                p.Name, p.Status.PodIP, p.Spec.NodeName, p.Status.Phase)
+            dcgmInfo = append(dcgmInfo, info)
+
+            if p.Status.Phase == corev1.PodRunning && p.Status.PodIP != "" {
+                r, err := scrapePod(p.Status.PodIP, p.Spec.NodeName)
+                if err == nil {
+                    out[p.Spec.NodeName] = *r
+                }
+            }
+        }
+    }
+
+    log.Info("=== GPU Operator Startup Discovery ===")
+    log.Info("Nodes found in cluster", "list", allNodeNames)
+    if len(dcgmInfo) > 0 {
+        log.Info("DCGM Exporters found", "details", dcgmInfo)
+    } else {
+        log.Info("WARNING: No DCGM Exporters found in any namespace!")
+    }
+    log.Info("======================================")
+
+    return out, nil
 }
 
 /* -------------------------------------------------------------------------- */
